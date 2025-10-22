@@ -4,6 +4,8 @@ from application import config
 from application.database import db
 from application.config import LocalDevelopmentConfig
 
+# Note: Beatification and dark mode is left for future improvements
+
 app = None
 
 def create_app():

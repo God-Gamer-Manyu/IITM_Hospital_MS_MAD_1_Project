@@ -3,6 +3,7 @@ Defines the tables of the database for the application.
 
 Note: in login table, the 'role' field, 0 - Admin, 1 - Doctor, 2 - Patient
 Note: in appointment table, the 'status' field, 0 - Booked, 1 - Compeleted, 2 - Cancelled
+Note: In Patient and Doctor Table, the 'blacklisted' field indicates if the user is blacklisted, 0 - Not blacklisted, 1 - Blacklisted
 """
 from .database import db
 from flask_login import UserMixin
@@ -31,7 +32,7 @@ class Doctor(db.Model):
             'ph_no': self.ph_no,
             # Do not include raw binary; convert when needed
             'has_profile_pic': bool(self.profile_pic),
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
         }
 
 class Department(db.Model):
@@ -86,7 +87,7 @@ class Patient(db.Model):
             'f_name': self.f_name,
             'l_name': self.l_name,
             'ph_no': self.ph_no,
-            'created_at': created_date,
+            'created_at': created_date
         }
         if include_image:
             try:
@@ -125,6 +126,7 @@ class Login(UserMixin, db.Model):
     username = db.Column(db.String, primary_key=True)
     password = db.Column(db.String, nullable=False)
     role = db.Column(db.Integer, nullable=False)  # 0 = Admin, 1 = Doctor, 2 = Patient
+    blacklisted = db.Column(db.Boolean, default=False) # 0 - Not blacklisted, 1 - Blacklisted
 
     def get_id(self):
         """Return the unique id for Flask-Login.

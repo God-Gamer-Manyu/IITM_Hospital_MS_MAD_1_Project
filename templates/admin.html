@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=4">
+  </head>
+  <body>
+    <header class="navbar-top d-flex align-items-center">
+      <div style="flex:1; display:flex; justify-content:center; gap:0.5rem;">
+        <a class="btn btn-sm btn-outline-primary" href="#appointments">Appointments</a>
+        <a class="btn btn-sm btn-outline-primary" href="#doctors">Doctors</a>
+        <a class="btn btn-sm btn-outline-primary" href="#departments">Departments</a>
+        <a class="btn btn-sm btn-outline-primary" href="#patients">Patients</a>
+      </div>
+      <div class="nav-actions">
+    <div class="profile-block d-flex align-items-center gap-2">
+      <img id="profileIcon" src="{% if admin %}{{ url_for('admin_avatar', admin_id=admin.id) }}{% else %}{{ url_for('static', filename='Images/Default_Pic.webp') }}{% endif %}" alt="avatar" class="rounded" width="40" height="40">
+            <form method="get" action="{{ url_for('logout') }}" class="m-0">
+                <button class="btn btn-sm btn-outline-secondary">Logout</button>
+            </form>
+        </div>
+      </div>
+    </header>
+
+    <main class="container-main">
+      <section id="overview" class="my-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h4>Overview</h4>
+          <div id="metrics" class="d-flex gap-3"></div>
+        </div>
+      </section>
+
+      <section id="appointments" class="my-4">
+        <h5>Appointments</h5>
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <input type="date" id="adminDatePicker" class="form-control" style="max-width:220px">
+        </div>
+        <div id="adminCalendarContainer"></div>
+      </section>
+
+      <section id="patients" class="my-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Patients</h5>
+          <div><button class="btn btn-sm btn-primary" onclick="openAddPatient()">Add Patient</button></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <div class="input-group">
+              <input id="adminPatientSearch" class="form-control" placeholder="Search patient name or id">
+              <select id="adminPatientDoctorFilter" class="form-select" style="max-width:220px"><option value="">All doctors</option></select>
+              <button id="adminPatientDropdownToggle" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">All</button>
+              <ul id="adminPatientDropdown" class="dropdown-menu dropdown-menu-end" style="max-height:300px; overflow:auto;"></ul>
+            </div>
+          </div>
+        </div>
+        <div id="adminPatientList" class="list-group" style="max-height:320px; overflow:auto"></div>
+      </section>
+
+      <section id="departments" class="my-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Departments</h5>
+          <div><button class="btn btn-sm btn-primary" onclick="openAddDept()">Add Department</button></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <div class="input-group">
+              <input id="adminDeptSearch" class="form-control" placeholder="Search department name or id">
+              <button id="adminDeptDropdownToggle" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">All</button>
+              <ul id="adminDeptDropdown" class="dropdown-menu dropdown-menu-end" style="max-height:300px; overflow:auto;"></ul>
+            </div>
+          </div>
+        </div>
+        <div id="adminDeptList" class="list-group" style="max-height:320px; overflow:auto"></div>
+      </section>
+
+      <section id="doctors" class="my-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Doctors</h5>
+          <div><button class="btn btn-sm btn-primary" onclick="openAddDoctor()">Add Doctor</button></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <div class="input-group">
+              <input id="adminDoctorSearch" class="form-control" placeholder="Search doctor name or id">
++              <select id="adminDoctorDeptFilter" class="form-select" style="max-width:180px"><option value="">All depts</option></select>
+              <button id="adminDoctorDropdownToggle" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">All</button>
+              <ul id="adminDoctorDropdown" class="dropdown-menu dropdown-menu-end" style="max-height:300px; overflow:auto;"></ul>
+            </div>
+          </div>
+        </div>
+        <div id="adminDoctorList" class="list-group" style="max-height:320px; overflow:auto"></div>
+      </section>
+    </main>
+
+    <div id="overlay" class="overlay">
+      <div class="card popup-card p-3">
+        <div id="popupContent"></div>
+        <div class="text-end mt-3"><button class="btn btn-secondary" onclick="closePopup()">Close</button></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const admin = {{ admin_js|tojson }};
+      document.getElementById('adminDatePicker').value = new Date().toISOString().slice(0,10);
+
+      // profile popup
+      const profileIconEl = document.getElementById('profileIcon');
+      if(profileIconEl){
+        profileIconEl.style.cursor='pointer';
+        profileIconEl.addEventListener('click', function(){
+          const avatar = (admin && admin.id) ? ('/admin_avatar/' + admin.id) : '/static/Images/Default_Pic.webp';
+          const html = `
+            <div class="profile-popup">
+              <img src="${avatar}" class="pp-avatar" alt="avatar">
+              <div class="pp-main">
+                <div class="mt-3 text-end"><button class="btn btn-sm btn-primary" style="position:absolute; top:1rem; right:1rem;" onclick="openEditAdmin()">Edit Profile</button></div>
+                <div class="pp-name">${admin ? (admin.f_name + ' ' + (admin.l_name||'')) : 'Admin'}</div>
+                <div class="pp-sub">@${admin ? admin.username : ''}</div>
+                <div class="pp-contact">
+                  <div class="pp-item">Member since: ${admin && admin.created_at ? admin.created_at.split('T')[0] : ''}</div>
+                </div>     
+              </div>
+            </div>`;
+          document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex';
+        });
+      }
+
+      function openEditAdmin(){
+        let html = `
+          <h5>Edit Admin</h5>
+          <form id="adminEditForm">
+            <div class="text-end"><button type="button" class="btn btn-primary" style="position:absolute; top:1rem; right:1rem;" onclick="saveAdminProfile()">Save</button></div>
+            <div class="mb-2">First name:<br><input id="a_f" class="form-control" value="${admin ? admin.f_name : ''}"></div>
+            <div class="mb-2">Last name:<br><input id="a_l" class="form-control" value="${admin ? admin.l_name : ''}"></div>
+            <div class="mb-2">Username:<br><input id="a_u" class="form-control" value="${admin ? admin.username : ''}"></div>
+            <div class="mb-2">Profile picture:<br><input id="a_pic" type="file" class="form-control"></div>           
+          </form>
+        `;
+        document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex';
+      }
+
+      async function saveAdminProfile(){
+        const fd = new FormData();
+        fd.append('f_name', document.getElementById('a_f').value.trim());
+        fd.append('l_name', document.getElementById('a_l').value.trim());
+        fd.append('username', document.getElementById('a_u').value.trim());
+        const pic = document.getElementById('a_pic'); if(pic && pic.files && pic.files.length>0) fd.append('profile_pic', pic.files[0]);
+        const res = await fetch('/admin_update_profile', { method: 'POST', body: fd });
+        const j = await res.json();
+        if(j.ok){ alert('Saved'); if(j.admin){ Object.assign(admin, j.admin); document.getElementById('profileIcon').src = (admin.id?'/admin_avatar/' + admin.id : '/static/Images/Default_Pic.webp') + '?v='+Date.now(); } closePopup(); } else alert(j.error||'Failed');
+      }
+
+      function closePopup(){ document.getElementById('overlay').style.display='none'; }
+
+      // metrics
+      async function loadMetrics(){ const r = await fetch('/admin/metrics'); const j = await r.json(); if(j.ok){ document.getElementById('metrics').innerHTML = `<div class="badge bg-primary p-2">Doctors: ${j.doctors}</div><div class="badge bg-success p-2">Patients: ${j.patients}</div><div class="badge bg-warning text-dark p-2">Upcoming: ${j.upcoming}</div><div class="badge bg-secondary p-2">Past: ${j.past}</div>`; } }
+
+      // calendar loading
+      async function loadAdminCalendar(){ const date = document.getElementById('adminDatePicker').value; const r = await fetch('/admin_calendar/'+date); const j = await r.json(); if(!j.ok){ document.getElementById('adminCalendarContainer').innerText='Failed'; return; } renderAdminCalendar(j.availability || []); }
+
+      function renderAdminCalendar(availability){
+        const container = document.getElementById('adminCalendarContainer'); container.innerHTML='';
+        const wrapper = document.createElement('div'); wrapper.className='calendar-wrapper';
+        const table = document.createElement('table'); table.className='calendar-table';
+        const times = availability.length ? availability[0].slots.map(s=>s.time) : [];
+        const thead = document.createElement('thead'); const headRow = document.createElement('tr');
+        const emptyTh = document.createElement('th'); emptyTh.className='date-col'; emptyTh.innerText='Date'; headRow.appendChild(emptyTh);
+        times.forEach(t=>{ const th=document.createElement('th'); th.className='time-head'; th.innerText=t; headRow.appendChild(th); }); thead.appendChild(headRow); table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        availability.forEach(day=>{
+          const tr=document.createElement('tr'); const dateTd=document.createElement('td'); dateTd.className='date-col'; dateTd.innerHTML=`<div style="font-weight:700">${day.date}</div>`; tr.appendChild(dateTd);
+          day.slots.forEach(slot=>{
+            const td=document.createElement('td');
+            if(slot.appointments && slot.appointments.length>0){
+              const first = slot.appointments[0];
+              td.innerHTML = `<div class="small"><strong>P#${first.patient_id}</strong> ${first.patient_name||''} <div class="small text-muted">Dr#${first.doctor_id} ${first.doctor_name||''}</div></div><div class="text-end"><button class="btn btn-sm btn-outline-primary show-more" data-date="${day.date}" data-time="${slot.time}">Show more</button></div>`;
+            } else {
+              td.innerHTML = `<div class="small text-muted">Free</div>`;
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody); wrapper.appendChild(table); container.appendChild(wrapper);
+        document.querySelectorAll('.show-more').forEach(b=> b.addEventListener('click', function(){ openSlotPopup(this.dataset.date, this.dataset.time); }));
+      }
+
+      async function openSlotPopup(date, time){ const r = await fetch('/admin_calendar/'+date); const j = await r.json(); if(!j.ok) return; const day = j.availability.find(d=> d.date===date); if(!day) return; const slot = day.slots.find(s=> s.time===time); if(!slot) return; let html = `<h5>Appointments ${date} ${time}</h5><div class="list-group">`;
+        slot.appointments.forEach(a=>{ html += `<div class="list-group-item d-flex align-items-center"><div><strong>P#${a.patient_id}</strong> ${a.patient_name}<div class="small text-muted">Dr#${a.doctor_id} ${a.doctor_name}</div></div><div class="ms-auto"><button class="btn btn-sm btn-outline-primary" onclick="viewTreatment(${a.id})">View</button></div></div>`; });
+        html += '</div>';
+        document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex';
+      }
+
+      async function viewTreatment(apptId){ const res = await fetch('/appointment/'+apptId+'/details'); const j = await res.json(); if(!j.ok){ alert(j.error||'Failed'); return; } let html = `<h5>Treatment</h5><div><strong>Diagnosis</strong><div>${j.diagnosis||'-'}</div></div><div class="mt-2"><strong>Prescription</strong><div>${j.prescription||'-'}</div></div><div class="mt-2"><strong>Notes</strong><div>${j.notes||'-'}</div></div>`; document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex'; }
+
+      // admin lists
+      let adminPatients = [];
+      async function loadAdminPatients(){ const r = await fetch('/admin/patients'); const j = await r.json(); if(!j.ok) return; adminPatients = j.patients || []; renderAdminPatientList(adminPatients); populateAdminPatientDropdown(adminPatients); }
+    
+      // Load patients with optional doctor filter
+      async function loadAdminPatientsFiltered(doctorId){
+        const url = doctorId ? ('/admin/patients?doctor_id=' + encodeURIComponent(doctorId)) : '/admin/patients';
+        const r = await fetch(url);
+        const j = await r.json(); if(!j.ok) return; adminPatients = j.patients || []; renderAdminPatientList(adminPatients); populateAdminPatientDropdown(adminPatients);
+      }
+      function renderAdminPatientList(list){
+        const el = document.getElementById('adminPatientList');
+        el.innerHTML='';
+        if(!list || list.length === 0){
+          // Determine message based on doctor filter
+          const sel = document.getElementById('adminPatientDoctorFilter');
+          let msg = 'No patients found.';
+          if(sel && sel.value && sel.value.trim() !== '') msg = 'No patients linked to the selected doctor.';
+          el.innerHTML = `<div class="alert alert-secondary m-0">${msg}</div>`;
+          return;
+        }
+        list.forEach(p=>{
+          const img = p.has_profile_pic ? '/avatar/'+p.id : '{{ url_for("static", filename="Images/Default_Pic.webp") }}';
+          const item = document.createElement('div');
+          item.className='list-group-item d-flex align-items-center';
+          const badge = p.blacklisted ? '<span class="badge bg-danger me-2">Blacklisted</span>' : '';
+          const actionBtn = p.blacklisted ? `<button class="btn btn-sm btn-outline-success me-1" onclick="togglePatientBlacklist(${p.id}, 'remove')">Remove Blacklist</button>` : `<button class="btn btn-sm btn-outline-danger me-1" onclick="togglePatientBlacklist(${p.id}, 'add')">Blacklist</button>`;
+          item.innerHTML = `<img src="${img}" width="56" height="56" class="rounded me-3" style="object-fit:cover"><div><div>${badge}<strong>${p.f_name} ${p.l_name}</strong> <div class="small text-muted">@${p.username} • ${p.ph_no}</div></div></div><div class="ms-auto text-end">${actionBtn}<button class="btn btn-sm btn-outline-primary me-1" onclick="openEditPatient(${p.id})">Edit</button><button class="btn btn-sm btn-outline-danger" onclick="deletePatient(${p.id})">Delete</button></div>`;
+          el.appendChild(item);
+        });
+      }
+      function populateAdminPatientDropdown(list){ const ul = document.getElementById('adminPatientDropdown'); ul.innerHTML=''; list.forEach(p=>{ const li = document.createElement('li'); li.innerHTML = `<a class="dropdown-item" href="#" data-pid="${p.id}">${p.f_name} ${p.l_name} (#${p.id})</a>`; ul.appendChild(li); }); ul.querySelectorAll('a.dropdown-item').forEach(a=> a.addEventListener('click', function(ev){ ev.preventDefault(); openEditPatient(this.dataset.pid); })); }
+
+      async function openEditPatient(pid){
+        // Admin should fetch patient details via admin endpoint (doctors have a different endpoint).
+        const res = await fetch('/admin/patient/'+pid);
+        const j = await res.json();
+        if(!j.ok){ alert(j.error||'Failed'); return; }
+        const patient = j.patient;
+        let html = `
+          <h5>Edit Patient</h5>
+          <form id="adminEditPatientForm">
+            <div class="text-end" style="position:relative;">
+              <button type="button" class="btn btn-primary" style="position:absolute; top:-2rem; right:0;" onclick="saveAdminPatient(${patient.id})">Save</button>
+            </div>
+            <div class="mb-2">
+              First name:<br>
+              <input id="p_f" class="form-control" value="${patient.f_name}">
+            </div>
+            <div class="mb-2">
+              Last name:<br>
+              <input id="p_l" class="form-control" value="${patient.l_name}">
+            </div>
+            <div class="mb-2">
+              Username(email):<br>
+              <input id="p_u" class="form-control" value="${patient.username}">
+            </div>
+            <div class="mb-2">
+              Phone:<br>
+              <input id="p_ph" class="form-control" value="${patient.ph_no}">
+            </div>
+            <div class="mb-2">
+              Profile picture:<br>
+              <input id="p_pic" type="file" class="form-control">
+            </div>
+            
+          </form>
+        `;
+        document.getElementById('popupContent').innerHTML = html;
+        document.getElementById('overlay').style.display='flex';
+      }
+
+    async function saveAdminPatient(pid) {
+      const fd = new FormData();
+      fd.append('f_name', document.getElementById('p_f').value.trim());
+      fd.append('l_name', document.getElementById('p_l').value.trim());
+      fd.append('ph_no', document.getElementById('p_ph').value.trim());
+      fd.append('username', document.getElementById('p_u').value.trim());
+
+      const pic = document.getElementById('p_pic');
+      if (pic && pic.files && pic.files.length > 0) {
+        fd.append('profile_pic', pic.files[0]);
+      }
+
+      const res = await fetch('/admin/patient/' + pid + '/edit', {
+        method: 'POST',
+        body: fd
+      });
+
+      const j = await res.json();
+      if (j.ok) {
+        alert('Saved');
+        loadAdminPatients();
+        closePopup();
+      } else {
+        alert(j.error || 'Failed');
+      }
+    }
+
+    // --- Add Patient ---
+    function openAddPatient(){
+      const html = `
+        <h5>Add Patient</h5>
+        <form id="adminAddPatientForm">
+            <div class="text-end"><button type="button" class="btn btn-primary" style="position:absolute; top:1rem; right:1rem;" onclick="saveAddPatient()">Add</button></div>
+          <div class="mb-2">First name:<br><input id="ap_f" class="form-control"></div>
+          <div class="mb-2">Last name:<br><input id="ap_l" class="form-control"></div>
+          <div class="mb-2">Username(email):<br><input id="ap_u" class="form-control"></div>
+          <div class="mb-2">Password:<br><input id="ap_pw" type="password" class="form-control"></div>
+          <div class="mb-2">Phone:<br><input id="ap_ph" class="form-control"></div>
+          <div class="mb-2">Profile picture:<br><input id="ap_pic" type="file" class="form-control"></div>
+        </form>`;
+      document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex';
+    }
+
+    async function saveAddPatient(){
+      if(!confirm('Add this patient?')) return;
+      const fd = new FormData();
+      fd.append('f_name', document.getElementById('ap_f').value.trim());
+      fd.append('l_name', document.getElementById('ap_l').value.trim());
+      fd.append('username', document.getElementById('ap_u').value.trim());
+      fd.append('password', document.getElementById('ap_pw').value);
+      fd.append('ph_no', document.getElementById('ap_ph').value.trim());
+      const pic = document.getElementById('ap_pic'); if(pic && pic.files && pic.files.length>0) fd.append('profile_pic', pic.files[0]);
+      const res = await fetch('/admin/patient/add', { method: 'POST', body: fd });
+      const j = await res.json();
+      if(j.ok){ alert('Patient added'); loadAdminPatients(); closePopup(); } else alert(j.error||'Failed');
+    }
+
+    async function deletePatient(pid) {
+      if (!confirm('Delete patient? This will remove login as well.')) return;
+
+      const res = await fetch('/admin/patient/' + pid + '/delete', {
+        method: 'POST'
+      });
+
+      const j = await res.json();
+      if (j.ok) {
+        alert('Deleted');
+        loadAdminPatients();
+      } else {
+        alert(j.error || 'Failed');
+      }
+    }
+
+    async function loadAdminDepartments() {
+      const r = await fetch('/admin/departments');
+      const j = await r.json();
+      if (!j.ok) return;
+
+      renderAdminDeptList(j.departments || []);
+      populateAdminDeptDropdown(j.departments || []);
+      populateDoctorDeptFilter(j.departments || []);
+    }
+
+    function renderAdminDeptList(list) {
+      const el = document.getElementById('adminDeptList');
+      el.innerHTML = '';
+
+      list.forEach(d => {
+        const img = d.has_profile_pic ? '/static/Images/Default_Pic.webp' : '/static/Images/Default_Pic.webp';
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex align-items-center';
+        item.innerHTML = `<img src="${img}" width="56" height="56" class="rounded me-3" style="object-fit:cover"><div><div><strong>${d.department_name}</strong> <div class="small text-muted">#${d.department_id} • ${d.doctors_registered} doctors</div></div></div><div class="ms-auto text-end"><button class="btn btn-sm btn-outline-primary me-1" onclick="openEditDept(${d.department_id})">Edit</button><button class="btn btn-sm btn-outline-danger" onclick="deleteDept(${d.department_id})">Delete</button></div>`;
+        el.appendChild(item);
+      });
+    }
+
+    function populateAdminDeptDropdown(list) {
+      const ul = document.getElementById('adminDeptDropdown');
+      ul.innerHTML = '';
+
+      list.forEach(d => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item" href="#" data-did="${d.department_id}">${d.department_name} (#${d.department_id})</a>`;
+        ul.appendChild(li);
+      });
+
+      ul.querySelectorAll('a.dropdown-item').forEach(a => {
+        a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        openEditDept(this.dataset.did);
+        });
+      });
+    }
+
+    function populateDoctorDeptFilter(list) {
+      const sel = document.getElementById('adminDoctorDeptFilter');
+      sel.innerHTML = '<option value="">All depts</option>' + list.map(d => `<option value="${d.department_id}">${d.department_name}</option>`).join('');
+
+      // When department selection changes, filter the shown doctor list.
+      sel.onchange = function () {
+        const val = this.value;
+        if (!val || val === '') {
+          renderAdminDoctorList(adminDoctors);
+          return;
+        }
+        // Filter by any likely field name that contains dept id
+        const filtered = adminDoctors.filter(d => {
+          try {
+            if (d.specialization_id !== undefined && d.specialization_id !== null) return String(d.specialization_id) === String(val);
+            if (d.department_id !== undefined && d.department_id !== null) return String(d.department_id) === String(val);
+            // some to_dict implementations may store dept under 'department' or 'specialization'
+            if (d.department !== undefined && d.department !== null) return String(d.department) === String(val);
+            if (d.specialization !== undefined && d.specialization !== null) return String(d.specialization) === String(val);
+            return false;
+          } catch (e) { return false; }
+        });
+        renderAdminDoctorList(filtered);
+      };
+    }
+
+    async function openEditDept(did) {
+      const res = await fetch('/department/' + did);
+      const j = await res.json();
+      if (!j.ok) {
+        alert(j.error || 'Failed');
+        return;
+      }
+
+    let html = `
+      <h5>Edit Department</h5>
+      <form id="adminEditDeptForm">
+        <div style="position:relative;">
+            <button type="button" class="btn btn-primary" style="position:absolute; top:-2rem; right:0;" onclick="saveAdminDept(${did})">Save</button>
+        </div>
+        <div class="mb-2">
+        Name:<br>
+        <input id="d_name" class="form-control" value="${j.department_name}">
+        </div>
+        <div class="mb-2">
+        Description:<br>
+        <textarea id="d_desc" class="form-control">${j.description || ''}</textarea>
+        </div>
+      </form>
+    `;
+    document.getElementById('popupContent').innerHTML = html;
+      document.getElementById('overlay').style.display = 'flex';
+    }
+
+    // --- Add Department ---
+    function openAddDept(){
+      const html = `
+        <h5>Add Department</h5>
+        <form id="adminAddDeptForm">
+            <div class="text-end"><button type="button" class="btn btn-primary" style="position:absolute; top:1rem; right:1rem;" onclick="saveAddDept()">Add</button></div>
+          <div class="mb-2">Name:<br><input id="ad_name" class="form-control"></div>
+          <div class="mb-2">Description:<br><textarea id="ad_desc" class="form-control"></textarea></div>
+        </form>`;
+      document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex';
+    }
+
+    async function saveAddDept(){
+      if(!confirm('Add this department?')) return;
+      const fd = new FormData();
+      fd.append('department_name', document.getElementById('ad_name').value.trim());
+      fd.append('description', document.getElementById('ad_desc').value.trim());
+      const res = await fetch('/department/add', { method: 'POST', body: fd });
+      const j = await res.json();
+      if(j.ok){ alert('Department added'); loadAdminDepartments(); closePopup(); } else alert(j.error||'Failed');
+    }
+
+    async function saveAdminDept(did) {
+      const fd = new FormData();
+      fd.append('department_name', document.getElementById('d_name').value.trim());
+      fd.append('description', document.getElementById('d_desc').value.trim());
+
+      const res = await fetch('/department/' + did, {
+        method: 'POST',
+        body: fd
+      });
+
+      const j = await res.json();
+      if (j.ok) {
+        alert('Saved');
+        loadAdminDepartments();
+        closePopup();
+      } else {
+        alert(j.error || 'Failed');
+      }
+    }
+
+    async function deleteDept(did) {
+      if (!confirm('Delete department?')) return;
+
+      const res = await fetch('/department/' + did, {
+        method: 'DELETE'
+      });
+
+      const j = await res.json();
+      if (j.ok) {
+        alert('Deleted');
+        loadAdminDepartments();
+      } else {
+        alert(j.error || 'Failed');
+      }
+    }
+
+    // doctors
+    let adminDoctors = [];
+
+    async function loadAdminDoctors() {
+      const r = await fetch('/admin/doctors');
+      const j = await r.json();
+      if (!j.ok) return;
+
+      adminDoctors = j.doctors || [];
+      renderAdminDoctorList(adminDoctors);
+      populateAdminDoctorDropdown(adminDoctors);
+    }
+
+    function renderAdminDoctorList(list) {
+      const el = document.getElementById('adminDoctorList');
+      el.innerHTML = '';
+      if(!list || list.length === 0){
+        const sel = document.getElementById('adminDoctorDeptFilter');
+        let msg = 'No doctors found.';
+        if(sel && sel.value && sel.value.trim() !== '') msg = 'No doctors in the selected department.';
+        el.innerHTML = `<div class="alert alert-secondary m-0">${msg}</div>`;
+        return;
+      }
+
+    list.forEach(d => {
+  const img = d.has_profile_pic ? '/doctor_avatar/' + d.id : '{{ url_for("static", filename="Images/Default_Pic.webp") }}';
+    const item = document.createElement('div');
+    item.className = 'list-group-item d-flex align-items-center';
+    const dbadge = d.blacklisted ? '<span class="badge bg-danger me-2">Blacklisted</span>' : '';
+    const daction = d.blacklisted ? `<button class="btn btn-sm btn-outline-success me-1" onclick="toggleDoctorBlacklist(${d.id}, 'remove')">Remove Blacklist</button>` : `<button class="btn btn-sm btn-outline-danger me-1" onclick="toggleDoctorBlacklist(${d.id}, 'add')">Blacklist</button>`;
+    item.innerHTML = `
+      <img src="${img}" width="56" height="56" class="rounded me-3" style="object-fit:cover">
+      <div>
+        <div>
+          ${dbadge}<strong>${d.f_name} ${d.l_name}</strong>
+          <div class="small text-muted">@${d.username} • ${d.ph_no}</div>
+        </div>
+      </div>
+      <div class="ms-auto text-end">
+        ${daction}
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditDoctor(${d.id})">Edit</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteDoctor(${d.id})">Delete</button>
+      </div>
+    `;el.appendChild(item);
+    });
+    }
+
+    function populateAdminDoctorDropdown(list) {
+      const ul = document.getElementById('adminDoctorDropdown');
+      ul.innerHTML = '';
+
+      list.forEach(d => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a class="dropdown-item" href="#" data-did="${d.id}">${d.f_name} ${d.l_name} (#${d.id})</a>`;
+        ul.appendChild(li);
+      });
+
+      ul.querySelectorAll('a.dropdown-item').forEach(a => {
+        a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        openEditDoctor(this.dataset.did);
+        });
+      });
+      // Also populate the patient doctor filter dropdown
+      const pfilter = document.getElementById('adminPatientDoctorFilter');
+      if(pfilter){
+        pfilter.innerHTML = '<option value="">All doctors</option>' + list.map(d => `<option value="${d.id}">${d.f_name} ${d.l_name} (#${d.id})</option>`).join('');
+        pfilter.onchange = function(){ const v = this.value; loadAdminPatientsFiltered(v); };
+      }
+    }
+
+    async function openEditDoctor(did) {
+      const res = await fetch('/doctor/' + did);
+      const j = await res.json();
+      if (!j.ok) {
+        alert(j.error || 'Failed');
+        return;
+      }
+
+    let html = `
+      <h5>Edit Doctor</h5>
+      <form id="adminEditDoctorForm">
+        </div style="position:relative;">
+        <div class="text-end">
+        <button type="button" class="btn btn-primary" style="position:absolute; top:0.5rem; right:1rem;" onclick="saveAdminDoctor(${did})">Save</button>
+        </div>
+        <div class="mb-2">
+        First name:<br>
+        <input id="d_f" class="form-control" value="${j.f_name}">
+        </div>
+        <div class="mb-2">
+        Last name:<br>
+        <input id="d_l" class="form-control" value="${j.l_name}">
+        </div>
+        <div class="mb-2">
+        Username(email):<br>
+        <input id="d_u" class="form-control" value="${j.username}">
+        </div>
+        <div class="mb-2">
+        Phone:<br>
+        <input id="d_ph" class="form-control" value="${j.ph_no}">
+        </div>
+        <div class="mb-2">
+        Department:<br>
+        <select id="d_dept" class="form-select">
+          ${document.getElementById('adminDoctorDeptFilter').innerHTML}
+        </select>
+        </div>
+        <div class="mb-2">
+        Profile picture:<br>
+        <input id="d_pic" type="file" class="form-control">
+      </form>
+    `;
+
+      document.getElementById('popupContent').innerHTML = html;
+      document.getElementById('overlay').style.display = 'flex';
+    }
+
+    // --- Add Doctor ---
+    function openAddDoctor(){
+      // reuse the dept filter options for select
+      const deptOptions = document.getElementById('adminDoctorDeptFilter') ? document.getElementById('adminDoctorDeptFilter').innerHTML : '';
+      const html = `
+        <h5>Add Doctor</h5>
+        <form id="adminAddDoctorForm">
+            <div class="text-end"><button type="button" class="btn btn-primary" style="position:absolute; top:1rem; right:1rem;" onclick="saveAddDoctor()">Add</button></div>
+          <div class="mb-2">First name:<br><input id="adoc_f" class="form-control"></div>
+          <div class="mb-2">Last name:<br><input id="adoc_l" class="form-control"></div>
+          <div class="mb-2">Username(email):<br><input id="adoc_u" class="form-control"></div>
+          <div class="mb-2">Password:<br><input id="adoc_pw" type="password" class="form-control"></div>
+          <div class="mb-2">Phone:<br><input id="adoc_ph" class="form-control"></div>
+          <div class="mb-2">Department:<br><select id="adoc_dept" class="form-select">${deptOptions}</select></div>
+          <div class="form-text text-muted">Note: "Created at" timestamp will be recorded automatically when the doctor is added.</div>
+          <div class="mb-2">Profile picture:<br><input id="adoc_pic" type="file" class="form-control"></div>
+        </form>`;
+      document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display='flex';
+    }
+
+    async function saveAddDoctor(){
+      // Validate department selection first (prevent submitting the default "All depts" value)
+      const deptVal = document.getElementById('adoc_dept') ? document.getElementById('adoc_dept').value : '';
+  if(!deptVal || deptVal.trim() === ''){ alert('Kindly select a department before adding a doctor.'); return; }
+      if(!confirm('Add this doctor?')) return;
+      const fd = new FormData();
+      fd.append('f_name', document.getElementById('adoc_f').value.trim());
+      fd.append('l_name', document.getElementById('adoc_l').value.trim());
+      fd.append('username', document.getElementById('adoc_u').value.trim());
+      fd.append('password', document.getElementById('adoc_pw').value);
+      fd.append('ph_no', document.getElementById('adoc_ph').value.trim());
+      fd.append('specialization_id', document.getElementById('adoc_dept').value);
+      const pic = document.getElementById('adoc_pic'); if(pic && pic.files && pic.files.length>0) fd.append('profile_pic', pic.files[0]);
+      const res = await fetch('/doctor/add', { method: 'POST', body: fd });
+      const j = await res.json();
+      if(j.ok){ alert('Doctor added'); loadAdminDoctors(); closePopup(); } else alert(j.error||'Failed');
+    }
+
+    async function saveAdminDoctor(did) {
+      const fd = new FormData();
+      fd.append('f_name', document.getElementById('d_f').value.trim());
+      fd.append('l_name', document.getElementById('d_l').value.trim());
+      fd.append('ph_no', document.getElementById('d_ph').value.trim());
+      fd.append('username', document.getElementById('d_u').value.trim());
+      fd.append('specialization_id', document.getElementById('d_dept').value);
+
+      const pic = document.getElementById('d_pic');
+      if (pic && pic.files && pic.files.length > 0) {
+        fd.append('profile_pic', pic.files[0]);
+      }
+
+      const res = await fetch('/doctor/' + did, {
+        method: 'POST',
+        body: fd
+      });
+
+      const j = await res.json();
+      if (j.ok) {
+        alert('Saved');
+        loadAdminDoctors();
+        closePopup();
+      } else {
+        alert(j.error || 'Failed');
+      }
+    }
+
+    async function deleteDoctor(did) {
+      if (!confirm('Delete doctor? This will remove login as well.')) return;
+
+      const res = await fetch('/doctor/' + did, {
+        method: 'DELETE'
+      });
+
+      const j = await res.json();
+      if (j.ok) {
+        alert('Deleted');
+        loadAdminDoctors();
+      } else {
+        alert(j.error || 'Failed');
+      }
+    }
+
+      // init
+      document.getElementById('adminDatePicker').addEventListener('change', loadAdminCalendar);
+      loadMetrics(); loadAdminCalendar(); loadAdminPatients(); loadAdminDepartments(); loadAdminDoctors();
+
+      // Blacklist toggles
+      async function togglePatientBlacklist(pid, action){
+        if(action === 'add' && !confirm('Blacklist this patient?')) return;
+        if(action === 'remove' && !confirm('Remove patient from blacklist?')) return;
+        const fd = new FormData(); fd.append('action', action);
+        const res = await fetch('/admin/blacklist/patient/'+pid, { method: 'POST', body: fd });
+        const j = await res.json(); if(!j.ok){ alert(j.error||'Failed'); return; } alert('Updated'); loadAdminPatients();
+      }
+
+      async function toggleDoctorBlacklist(did, action){
+        if(action === 'add' && !confirm('Blacklist this doctor?')) return;
+        if(action === 'remove' && !confirm('Remove doctor from blacklist?')) return;
+        const fd = new FormData(); fd.append('action', action);
+        const res = await fetch('/admin/blacklist/doctor/'+did, { method: 'POST', body: fd });
+        const j = await res.json(); if(!j.ok){ alert(j.error||'Failed'); return; } alert('Updated'); loadAdminDoctors();
+      }
+    </script>
+  </body>
+</html>
