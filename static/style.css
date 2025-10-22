@@ -11,6 +11,8 @@ body {
   border-radius: 12px;
   box-shadow: 0 6px 30px rgba(0,0,0,0.08);
 }
+/* Wider card for modern layout when visual panel present */
+.card-login { max-width: 880px; }
 .brand {
   font-weight: 700;
   letter-spacing: 0.2px;
@@ -26,6 +28,24 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
+}
+
+/* Login visual panel */
+.login-visual h3{ font-weight:700; }
+.login-visual p{ opacity:0.95; }
+
+/* Input group polish for auth forms */
+.card-login .input-group .input-group-text { border-radius:8px 0 0 8px; border-right: 0; }
+.card-login .input-group .form-control { border-radius:0 8px 8px 0; }
+.card-login .input-group.form-floating .form-control { border-radius:8px; }
+
+/* Social buttons small style */
+.card-login .btn-outline-secondary.btn-sm { min-width:120px; }
+
+/* Adjustments for smaller devices when visual column hidden */
+@media (max-width: 767px) {
+  .card-login { margin: 4vh 1rem; }
+  .card-login .card-body { padding: 1.5rem !important; }
 }
 
 /* Center the card vertically and horizontally within viewport */
