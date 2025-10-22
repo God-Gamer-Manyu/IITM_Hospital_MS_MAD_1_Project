@@ -89,7 +89,210 @@ def admin_dashboard():
 @app.route('/doctor')
 @role_required(1)
 def doctor_dashboard():
-    return render_template('placeholder.html', title='Doctor Dashboard', message='Welcome, Doctor!')
+    # Render the doctor dashboard page and provide doctor JS data
+    login = Login.query.filter_by(username=current_user.get_id()).first()
+    doctor = login.user_info if login else None
+    if not doctor:
+        flash('Doctor profile not found', 'error')
+        return redirect(url_for('login_page'))
+
+    doctor_js = doctor.to_dict() if doctor else None
+    # include department name for template convenience
+    if doctor_js is not None:
+        try:
+            doctor_js['department'] = doctor.department.department_name if doctor.department else None
+        except Exception:
+            doctor_js['department'] = None
+
+    # provide list of departments for display (e.g., populate department name)
+    departments = Department.query.all()
+    departments_js = [d.to_dict() for d in departments]
+
+    return render_template('doctor.html', doctor=doctor, doctor_js=doctor_js, departments_js=departments_js)
+
+
+
+@app.route('/doctor_update_profile', methods=['POST'])
+@role_required(1)
+def doctor_update_profile():
+    login = Login.query.filter_by(username=current_user.get_id()).first()
+    doctor = login.user_info if login else None
+    if not doctor:
+        return jsonify({'ok': False, 'error': 'Doctor not found'}), 404
+
+    f_name = request.form.get('f_name', '').strip()
+    l_name = request.form.get('l_name', '').strip()
+    ph_no = request.form.get('ph_no', '').strip()
+
+    # Only allow those fields to be updated
+    if not all([f_name, l_name, ph_no]):
+        return jsonify({'ok': False, 'error': 'All fields required'}), 400
+
+    try:
+        doctor.f_name = f_name
+        doctor.l_name = l_name
+        doctor.ph_no = int(ph_no)
+        prof = request.files.get('profile_pic')
+        if prof and prof.filename:
+            doctor.profile_pic = prof.read()
+        db.session.commit()
+        # return updated doctor dict (include department name)
+        d = doctor.to_dict()
+        try:
+            d['department'] = doctor.department.department_name if doctor.department else None
+        except Exception:
+            d['department'] = None
+        return jsonify({'ok': True, 'doctor': d})
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'Phone must be numeric'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/doctor_calendar/<int:doctor_id>', methods=['GET'])
+@role_required(1)
+def doctor_calendar(doctor_id: int):
+    # Return availability for next 7 days including booked info with patient details
+    d = Doctor.query.filter_by(id=doctor_id).first()
+    if not d:
+        return jsonify({'ok': False, 'error': 'Doctor not found'}), 404
+
+    today = datetime.now().date()
+    days = [(today + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
+
+    # Build time slots 09:00-20:00 30-min
+    slots = []
+    cur = datetime.strptime('09:00', '%H:%M')
+    end = datetime.strptime('20:00', '%H:%M')
+    while cur <= end:
+        slots.append(cur.strftime('%H:%M'))
+        cur += timedelta(minutes=30)
+
+    # Query appointments for doctor in these days
+    appts = Appointment.query.filter(and_(Appointment.doctor_id == doctor_id, Appointment.date.in_(days))).all()
+    appt_map = {(a.date, a.time): a for a in appts if a.status != 'Cancelled'}
+
+    availability = []
+    for day in days:
+        day_slots = []
+        for t in slots:
+            key = (day, t)
+            if key in appt_map:
+                a = appt_map[key]
+                patient = a.patient
+                patient_name = f"{patient.f_name} {patient.l_name}" if patient else None
+                day_slots.append({'time': t, 'booked': True, 'appointment_id': a.id, 'patient_id': patient.id if patient else None, 'patient_name': patient_name, 'status': a.status})
+            else:
+                day_slots.append({'time': t, 'booked': False})
+        availability.append({'date': day, 'slots': day_slots})
+
+    return jsonify({'ok': True, 'doctor_id': doctor_id, 'availability': availability})
+
+
+@app.route('/doctor_patients/<int:doctor_id>', methods=['GET'])
+@role_required(1)
+def doctor_patients(doctor_id: int):
+    # Return unique patients who have appointments with this doctor
+    d = Doctor.query.filter_by(id=doctor_id).first()
+    if not d:
+        return jsonify({'ok': False, 'error': 'Doctor not found'}), 404
+
+    appts = Appointment.query.filter_by(doctor_id=doctor_id).all()
+    patient_ids = sorted({a.patient_id for a in appts if a.patient_id})
+    patients = Patient.query.filter(Patient.id.in_(patient_ids)).all() if patient_ids else []
+    patients_js = []
+    for p in patients:
+        pdata = p.to_dict(include_image=False)
+        # find latest appointment for this patient with this doctor
+        latest = Appointment.query.filter_by(doctor_id=doctor_id, patient_id=p.id).order_by(Appointment.date.desc(), Appointment.time.desc()).first()
+        if latest:
+            pdata['latest_appointment'] = {'id': latest.id, 'date': latest.date, 'time': latest.time, 'status': latest.status}
+        else:
+            pdata['latest_appointment'] = None
+        patients_js.append(pdata)
+    return jsonify({'ok': True, 'patients': patients_js})
+
+
+@app.route('/patient_appointments/<int:patient_id>', methods=['GET'])
+@role_required(1)
+def patient_appointments(patient_id: int):
+    p = Patient.query.filter_by(id=patient_id).first()
+    if not p:
+        return jsonify({'ok': False, 'error': 'Patient not found'}), 404
+    # Only patients associated with current doctor should be viewable: ensure current_user is doctor
+    login = Login.query.filter_by(username=current_user.get_id()).first()
+    doc = login.user_info if login else None
+    if not doc:
+        return jsonify({'ok': False, 'error': 'Doctor profile not found'}), 403
+
+    # Check if patient has appointment with this doctor
+    related = Appointment.query.filter_by(doctor_id=doc.id, patient_id=p.id).all()
+    if not related:
+        # Still allow viewing if doctor is admin? For now restrict
+        return jsonify({'ok': False, 'error': 'Patient not associated with you'}), 403
+
+    # Build appointment list sorted descending (today first)
+    appts = Appointment.query.filter_by(patient_id=p.id).order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+    appt_list = []
+    for a in appts:
+        appt_list.append({'id': a.id, 'date': a.date, 'time': a.time, 'status': a.status})
+
+    return jsonify({'ok': True, 'patient': p.to_dict(include_image=False), 'appointments': appt_list})
+
+
+@app.route('/appointment/<int:appt_id>/complete', methods=['POST'])
+@role_required(1)
+def appointment_complete(appt_id: int):
+    a = Appointment.query.filter_by(id=appt_id).first()
+    if not a:
+        return jsonify({'ok': False, 'error': 'Appointment not found'}), 404
+    # ensure current doctor owns this appointment
+    login = Login.query.filter_by(username=current_user.get_id()).first()
+    doc = login.user_info if login else None
+    if not doc or a.doctor_id != doc.id:
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 403
+    try:
+        a.status = 'Completed'
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/treatment/<int:appt_id>/edit', methods=['POST'])
+@role_required(1)
+def treatment_edit(appt_id: int):
+    # Accept JSON payload with diagnosis, prescription, notes
+    data = request.get_json() or {}
+    diagnosis = data.get('diagnosis')
+    prescription = data.get('prescription')
+    notes = data.get('notes')
+
+    a = Appointment.query.filter_by(id=appt_id).first()
+    if not a:
+        return jsonify({'ok': False, 'error': 'Appointment not found'}), 404
+    login = Login.query.filter_by(username=current_user.get_id()).first()
+    doc = login.user_info if login else None
+    if not doc or a.doctor_id != doc.id:
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 403
+
+    tr = Treatment.query.filter_by(id=appt_id).first()
+    try:
+        if not tr:
+            tr = Treatment(id=appt_id, diagnosis=diagnosis, prescription=prescription, notes=notes)
+            db.session.add(tr)
+        else:
+            tr.diagnosis = diagnosis
+            tr.prescription = prescription
+            tr.notes = notes
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 @app.route('/patient')

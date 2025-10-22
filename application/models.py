@@ -40,6 +40,7 @@ class Department(db.Model):
     department_name = db.Column(db.String, nullable=False)
     description = db.Column(db.String)
     doctors_registered = db.Column(db.Integer, default=0)
+    dep_pic = db.Column(db.LargeBinary)  # Store image as binary
 
     doctors = db.relationship("Doctor", back_populates="department")
 
@@ -48,7 +49,9 @@ class Department(db.Model):
             'department_id': self.department_id,
             'department_name': self.department_name,
             'description': self.description,
-            'doctors_registered': self.doctors_registered
+            'doctors_registered': self.doctors_registered,
+            #Note: Do not include raw binary; convert when needed
+            'has_profile_pic': bool(self.dep_pic),
         }
 
 class Patient(db.Model):
@@ -164,7 +167,7 @@ class Admin(db.Model):
             'username': self.username,
             'f_name': self.f_name,
             'l_name': self.l_name,
-            # Do not include raw binary; convert when needed
+            #Note: Do not include raw binary; convert when needed
             'has_profile_pic': bool(self.profile_pic),
             'created_at': self.created_at.isoformat()
         }

@@ -36,62 +36,7 @@
 
       .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; z-index:1050; }
       .popup-card { max-width:720px; width:95%; }
-  /* Calendar table wrapper: keep the calendar inside container and allow scroll */
-  .calendar-wrapper {
-    overflow-x: auto; /* allow horizontal scroll when table is wider */
-    overflow-y: auto;
-    max-width: 100%;
-    max-height: 520px; /* constrain vertical size so wrapper scrolls */
-    border-radius: 6px;
-    padding: 6px;
-    background: #fff;
-  }
-
-  .calendar-table {
-    border-collapse: separate;
-    border-spacing: 6px;
-    width: max-content; /* allow table to be as wide as its contents */
-    min-width: 100%; /* ensure it at least fills the container */
-    /* remove table-layout: fixed so cells keep natural size */
-  }
-
-  .calendar-table th,
-  .calendar-table td {
-    border: 1px solid #e9f3f9;
-    padding: 8px;
-    min-width: 120px; /* make cells roomy by default */
-    vertical-align: top;
-    white-space: normal; /* allow multi-line content and keep shape */
-  }
-
-  /* Sticky date column on the left */
-  .calendar-table .date-col {
-    position: sticky;
-    left: 0;
-    background: #fff;
-    z-index: 6;
-    min-width: 140px;
-    font-weight: 600;
-  }
-
-  /* Sticky header for times */
-  .calendar-table thead th {
-    position: sticky;
-    top: 0;
-    background: #f8fbff;
-    z-index: 7;
-  }
-
-  .calendar-table thead th.time-head { z-index: 8; }
-
-  .calendar-table td .slot-btn { display: block; margin-top: 6px; }
-
-  .calendar-table td.booked {
-    background: #f8d7da;
-    color: #721c24;
-    text-align: center;
-    font-weight: 700;
-  }
+  /* Calendar CSS moved to static/style.css for reuse across pages */
     </style>
   </head>
   <body>

@@ -131,3 +131,65 @@ main.container {
 .dept-popup .dept-doctor { background:#fff; border:1px solid #e6edf3; padding:0.5rem 0.75rem; border-radius:8px; display:flex; gap:0.5rem; align-items:center; min-width:220px; }
 .dept-popup .dept-doctor .doc-name { font-weight:600; }
 .dept-popup .dept-doctor .doc-action { margin-left:auto; }
+
+/* Doctor booked slot highlight (green) */
+.doctor-booked { background: #d1fae5; color: #064e3b; }
+
+/* Shared calendar styles used by patient and doctor pages */
+.calendar-wrapper {
+  overflow-x: auto; /* allow horizontal scroll when table is wider */
+  overflow-y: auto;
+  max-width: 100%;
+  max-height: 520px; /* constrain vertical size so wrapper scrolls */
+  border-radius: 6px;
+  padding: 6px;
+  background: #fff;
+}
+
+.calendar-table {
+  border-collapse: separate;
+  border-spacing: 6px;
+  width: max-content; /* allow table to be as wide as its contents */
+  min-width: 100%; /* ensure it at least fills the container */
+}
+
+.calendar-table th,
+.calendar-table td {
+  border: 1px solid #e9f3f9;
+  padding: 8px;
+  min-width: 120px; /* make cells roomy by default */
+  vertical-align: top;
+  white-space: normal; /* allow multi-line content and keep shape */
+}
+
+.calendar-table .date-col {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 6;
+  min-width: 140px;
+  font-weight: 600;
+}
+
+.calendar-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fbff;
+  z-index: 7;
+}
+
+.calendar-table thead th.time-head { z-index: 8; }
+
+.calendar-table td .slot-btn { display: block; margin-top: 6px; }
+
+.calendar-table td.booked {
+  background: #f8d7da;
+  color: #721c24;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Typeahead suggestions */
+.typeahead-suggestions{ position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e6edf3; z-index:20; max-height:220px; overflow:auto; }
+.typeahead-suggestions .typeahead-item{ padding:0.5rem 0.75rem; cursor:pointer; }
+.typeahead-suggestions .typeahead-item:hover{ background:#f1f5f9; }

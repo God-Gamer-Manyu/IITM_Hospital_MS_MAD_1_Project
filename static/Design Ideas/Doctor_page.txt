@@ -1,0 +1,17 @@
+Now i want to create the doctor page page where first there will be a central banner with internal navigations to Appointments and patient and at the right corner there must be a profile icon beside which a logout button (clicking this would logout and redirect to login page)
+
+Navbar also should look like that in patient page
+
+Profile Icon:
+do same as done in Patient
+
+Appointments section:
+Create the same calendar like section as done in Patient (show for upcoming week). Here if at the particular time slot is booked, show the Patient ID, name and a load button that will load that patient details in Patient section, and make the background green.
+
+Patient section:
+Here first there will be seacrh (filter bar) bar containing drop down menu (can type inside too so it will act like a prefix search) for patient names, or he can type patient id manually and search
+After which there will be a list used to show the patient. By default it will populated with all patients associated with the doctor (use appointments table to get assoicated patients id). 
+Once he searches the patient, only that patient will be shown in the list.
+Each object in the list must show the patient pic, id, name and a view button and after which its latest appointment (include the time and a button completed which when clicked prompt a confirmation and if yes mark the appointment as completed). When the view button is clicked the a popup comes up which shows all the appointment made by that patient in a list (sorted in descending like todays first, then yesterdays, etc.). Each object in that list also has a completed button (which when click prompt a confirmation and if yes mark the appointment as completed) and a view button which when clicked will show the traetment details (diagnosis, prescription, notes) repurposing the same popup, this popup will have a back and edit button, the back button will go back to the previous popup and edit popup will allow the doctor to edit the treatment details and save them
+
+All popup style like done in patient and thet must be modornised
