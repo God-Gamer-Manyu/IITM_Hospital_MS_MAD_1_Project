@@ -1,0 +1,94 @@
+/* Styles for login page moved from inline template */
+body {
+  background: linear-gradient(135deg,#f8fafc 0%,#e9eef6 100%) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.card-login {
+  max-width: 420px;
+  margin: 6vh auto;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 6px 30px rgba(0,0,0,0.08);
+}
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  /* Visual check color to confirm stylesheet is applied */
+  color: #0d6efd !important;
+}
+.form-floating > .form-control:focus {
+  z-index: 2;
+}
+.card-body--center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Center the card vertically and horizontally within viewport */
+main.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Add internal spacing between card border and content */
+.card-body {
+  padding: 2.25rem !important;
+}
+
+/* Remember/Forgot row spacing */
+.remember-forgot {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* Make Register look like a button but remain a link */
+.btn-register {
+  display: inline-block;
+}
+
+/* Polished styles for auth buttons inside the login card */
+.card-login .btn-primary {
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(13,110,253,0.18);
+  background: linear-gradient(180deg, #0d6efd, #0b5ed7);
+  border: none;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.card-login .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(13,110,253,0.22);
+}
+.card-login .btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 14px rgba(13,110,253,0.16);
+}
+
+.card-login .btn-outline-secondary {
+  border-radius: 10px;
+  padding: 0.7rem 1.1rem;
+  font-weight: 600;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  background: white;
+}
+.card-login .btn-outline-secondary:hover {
+  background: #f8fafc;
+}
+
+/* Minor responsive tweaks */
+@media (max-width: 480px) {
+  .card-login { margin: 4vh 1.25rem; }
+}
