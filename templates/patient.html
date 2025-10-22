@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Patient</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
+    <style>
+      /* Wireframe-like layout for patient page */
+      body { background: linear-gradient(180deg,#f6fbff,#f7f9fb); }
+      .navbar-top { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; border-bottom:2px solid #111; background:#fff; }
+      .brand { font-weight:700; letter-spacing:1px; }
+      .nav-actions { display:flex; gap:0.75rem; align-items:center; }
+      .profile-block { display:flex; gap:0.5rem; align-items:center; }
+
+      .container-main { max-width:1100px; margin:1rem auto; padding:0 1rem; }
+
+      .dept-carousel { display:flex; gap:1rem; padding:1rem 0; }
+      .dept-card { width:160px; height:120px; background:#fff; border:1px solid #ddd; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:600; }
+
+      .search-doctor { width:100%; margin:0.5rem 0 1rem; }
+      .doctor-panel { background:#fff; border:1px solid #e6edf3; padding:1rem; border-radius:8px; }
+      .doctor-info { display:flex; gap:1rem; align-items:flex-start; }
+      .doctor-avatar { width:96px; height:96px; border-radius:8px; object-fit:cover; }
+
+      .booking-area { margin-top:1rem; border:1px dashed #e6eef6; padding:0.75rem; border-radius:6px; background:#fbfeff; }
+
+      .appointments-wrap { margin-top:1.25rem; }
+      .appt-card { background:#fff; border:1px solid #e6edf3; padding:1rem; border-radius:8px; }
+      .appointments-list { min-height:200px; max-height:420px; overflow:auto; }
+
+      @media(min-width:900px){
+        .doctor-info { align-items:center; }
+      }
+
+      .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; z-index:1050; }
+      .popup-card { max-width:720px; width:95%; }
+  /* Calendar table wrapper: keep the calendar inside container and allow scroll */
+  .calendar-wrapper {
+    overflow-x: auto; /* allow horizontal scroll when table is wider */
+    overflow-y: auto;
+    max-width: 100%;
+    max-height: 520px; /* constrain vertical size so wrapper scrolls */
+    border-radius: 6px;
+    padding: 6px;
+    background: #fff;
+  }
+
+  .calendar-table {
+    border-collapse: separate;
+    border-spacing: 6px;
+    width: max-content; /* allow table to be as wide as its contents */
+    min-width: 100%; /* ensure it at least fills the container */
+    /* remove table-layout: fixed so cells keep natural size */
+  }
+
+  .calendar-table th,
+  .calendar-table td {
+    border: 1px solid #e9f3f9;
+    padding: 8px;
+    min-width: 120px; /* make cells roomy by default */
+    vertical-align: top;
+    white-space: normal; /* allow multi-line content and keep shape */
+  }
+
+  /* Sticky date column on the left */
+  .calendar-table .date-col {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 6;
+    min-width: 140px;
+    font-weight: 600;
+  }
+
+  /* Sticky header for times */
+  .calendar-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8fbff;
+    z-index: 7;
+  }
+
+  .calendar-table thead th.time-head { z-index: 8; }
+
+  .calendar-table td .slot-btn { display: block; margin-top: 6px; }
+
+  .calendar-table td.booked {
+    background: #f8d7da;
+    color: #721c24;
+    text-align: center;
+    font-weight: 700;
+  }
+    </style>
+  </head>
+  <body>
+    <header class="navbar-top d-flex align-items-center">
+      <div style="flex:1; display:flex; justify-content:center; gap:0.5rem;">
+        <a class="btn btn-sm btn-outline-primary" href="#appointments">Appointments</a>
+        <a class="btn btn-sm btn-outline-primary" href="#departments">Departments</a>
+        <a class="btn btn-sm btn-outline-primary" href="#availability">Doctor Availability</a>
+      </div>
+      <div class="nav-actions">
+        <div class="profile-block">
+          <!-- <div class="me-2">Profile</div> -->
+          <img id="profileIcon" src="{% if patient %}{{ url_for('avatar', patient_id=patient.id) }}{% else %}{{ url_for('static', filename='Images/Default_Pic.webp') }}{% endif %}" alt="avatar" class="rounded" width="40" height="40">
+          <form method="get" action="{{ url_for('logout') }}"><button class="btn btn-sm btn-outline-secondary">Logout</button></form>
+        </div>
+      </div>
+    </header>
+
+    <main class="container-main">
+      <!-- Departments carousel -->
+      <section id="departments">
+        <h5 class="mb-2">Departments Available</h5>
+        <div class="dept-carousel">
+          {% for d in departments %}
+            <div class="dept-card" onclick="showDept({{ d.department_id }})">{{ d.department_name }}</div>
+          {% else %}
+            <div class="text-muted">No departments found</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Search and Doctor display / booking -->
+      <section id="availability">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <select id="deptSelect" class="form-select">
+              <option value="">-- Select department --</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <select id="docSelect" class="form-select">
+              <option value="">-- Select doctor --</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <input id="doctorSearch" class="form-control" placeholder="Search doctor by name (type and press Enter)">
+          </div>
+        </div>
+
+        <div class="doctor-panel">
+          <div class="doctor-info">
+            <img src="{{ url_for('static', filename='Images/Default_Pic.webp') }}" class="doctor-avatar" id="selectedDoctorAvatar">
+            <div>
+              <h6 id="selectedDoctorName">Select a doctor</h6>
+              <div id="selectedDoctorDept" class="text-muted small">Department</div>
+              <div id="selectedDoctorContact" class="mt-2 small text-muted">Contact details</div>
+            </div>
+          </div>
+
+          <div class="booking-area" id="bookingArea">
+            <div id="calendarContainer">
+              <!-- calendar will be injected here -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Appointments large area -->
+      <section id="appointments" class="appointments-wrap">
+        <div class="appt-card">
+          <ul class="nav nav-tabs">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#upcomingTab">Upcoming</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#pastTab">Past</a></li>
+          </ul>
+          <div class="tab-content p-3">
+            <div id="upcomingTab" class="tab-pane fade show active">
+              <div class="appointments-list">
+                {% for appt in upcoming %}
+                  <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                    <div>
+                      <strong>Dr. {{ appt.doctor.f_name }} {{ appt.doctor.l_name }}</strong>
+                      <div class="small text-muted">Dept: {{ appt.doctor.department.department_name if appt.doctor.department else '' }}</div>
+                      <div class="small">{{ appt.date }} {{ appt.time }}</div>
+                    </div>
+                    <div class="text-end">
+                      <span class="badge bg-info">{{ appt.status }}</span>
+                      <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewDetails({{ appt.id }})">View</button>
+                        <button class="btn btn-sm btn-danger" onclick="cancelConfirm({{ appt.id }})">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="p-2 text-muted">No upcoming appointments.</div>
+                {% endfor %}
+              </div>
+            </div>
+            <div id="pastTab" class="tab-pane fade">
+              <div class="appointments-list">
+                {% for appt in past %}
+                  <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                    <div>
+                      <strong>Dr. {{ appt.doctor.f_name }} {{ appt.doctor.l_name }}</strong>
+                      <div class="small text-muted">Dept: {{ appt.doctor.department.department_name if appt.doctor.department else '' }}</div>
+                      <div class="small">{{ appt.date }} {{ appt.time }}</div>
+                    </div>
+                    <div class="text-end">
+                      <span class="badge bg-secondary">{{ appt.status }}</span>
+                      <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewDetails({{ appt.id }})">View</button>
+                      </div>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="p-2 text-muted">No past appointments.</div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- duplicate sections removed -->
+    </main>
+
+    <!-- Overlay for popups -->
+    <div id="overlay" class="overlay">
+      <div class="card popup-card p-3">
+        <div id="popupContent"></div>
+        <div class="text-end mt-3"><button class="btn btn-secondary" onclick="closePopup()">Close</button></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // --- Utilities & data from server ---
+      const departments = {{ departments_js|tojson }};
+      const doctors = {{ doctors_js|tojson }};
+      const patient = {{ patient_js|tojson }};
+
+  // --- Profile popup (view/edit) ---
+  const defaultAvatarUrl = "{{ url_for('static', filename='Images/Default_Pic.webp') }}";
+  document.getElementById('profileIcon').addEventListener('click', function(){
+          const html = `
+            <div class="profile-popup">
+              <img src="${patient.profile_b64 ? 'data:image/*;base64,'+patient.profile_b64 : defaultAvatarUrl}" class="pp-avatar" alt="avatar">
+              <div class="pp-main">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="pp-name">${patient.f_name} ${patient.l_name}</div>
+                    <div class="pp-sub">${patient.username}</div>
+                  </div>
+                  <div><button class="btn btn-primary" id="editBtn">Edit</button></div>
+                </div>
+                <div class="pp-contact">
+                  <div class="pp-item">Phone: ${patient.ph_no || '-'}</div>
+                  <div class="pp-item">Member since: ${patient.created_at || '-'}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        document.getElementById('popupContent').innerHTML = html;
+        document.getElementById('overlay').style.display = 'flex';
+        document.getElementById('editBtn').addEventListener('click', openProfileEditor);
+      });
+
+      function openProfileEditor(){
+        const content = document.getElementById('popupContent');
+        content.innerHTML = `
+          <h5>Edit Profile</h5>
+          <div class="popup-header-actions">
+            <button class="btn btn-primary" id="doSave">Save</button>
+            <button class="btn btn-light" id="doCancel">Cancel</button>
+          </div>
+          <div class="mb-2 profile-edit-input">First name:<br><input class="form-control" id="pfname" value="${patient.f_name}"></div>
+          <div class="mb-2 profile-edit-input">Last name:<br><input class="form-control" id="plname" value="${patient.l_name}"></div>
+          <div class="mb-2 profile-edit-input">Email:<br><input class="form-control" value="${patient.username}" disabled></div>
+          <div class="mb-2 profile-edit-input">Phone:<br><input class="form-control" id="pphone" value="${patient.ph_no}"></div>
+          <div class="mb-2 profile-edit-input">Profile picture:<br><input type="file" id="ppic" accept="image/*"></div>
+        `;
+        document.getElementById('doCancel').addEventListener('click', closePopup);
+        document.getElementById('doSave').addEventListener('click', function(){
+          const data = new FormData();
+          data.append('f_name', document.getElementById('pfname').value);
+          data.append('l_name', document.getElementById('plname').value);
+          data.append('ph_no', document.getElementById('pphone').value);
+          const fileEl = document.getElementById('ppic');
+          if(fileEl && fileEl.files && fileEl.files.length > 0){ data.append('profile_pic', fileEl.files[0]); }
+          fetch('{{ url_for("update_profile") }}', {method:'POST', body:data}).then(r=>r.json()).then(j=>{
+            if(j.ok) { location.reload(); } else { alert(j.error || 'Failed'); }
+          });
+        });
+      }
+
+      function closePopup(){ document.getElementById('overlay').style.display = 'none'; }
+
+      // --- Appointments details / cancel ---
+      function viewDetails(id){
+        fetch('/appointment/'+id+'/details').then(r=>r.json()).then(j=>{
+          const html = `<h5>Details</h5><div><strong>Diagnosis</strong><div>${j.diagnosis || '-'}</div></div><div class="mt-2"><strong>Prescription</strong><div>${j.prescription || '-'}</div></div><div class="mt-2"><strong>Notes</strong><div>${j.notes || '-'}</div></div>`;
+          document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display = 'flex';
+        });
+      }
+
+      function cancelConfirm(id){
+        if(confirm('Cancel this appointment?')){
+          fetch('/appointment/'+id+'/cancel', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.ok) location.reload(); else alert(j.error||'Failed'); });
+        }
+      }
+
+      // --- Departments popup ---
+      function showDept(id){
+        fetch('/department/'+id).then(r=>r.json()).then(j=>{
+          if(!j.ok){ alert(j.error||'Failed to load department'); return; }
+          let html = `<div class="dept-popup">`;
+          html += `<div class="dept-head"><div><div class="dept-title">${j.department_name}</div><div class="dept-desc">${j.description||''}</div></div></div>`;
+          html += `<div class="dept-doctors">`;
+          j.doctors.forEach(d=>{
+            html += `<div class="dept-doctor"><div class="doc-name">${d.f_name} ${d.l_name}</div><div class="doc-action"><button class="btn btn-sm btn-outline-primary" data-doc-id="${d.id}">Load</button></div></div>`;
+          });
+          html += `</div></div>`;
+          document.getElementById('popupContent').innerHTML = html; document.getElementById('overlay').style.display = 'flex';
+          // bind buttons
+          document.querySelectorAll('#popupContent .dept-doctor button[data-doc-id]').forEach(b=> b.addEventListener('click', function(){ const did = this.getAttribute('data-doc-id'); document.getElementById('overlay').style.display='none'; loadDoctor(did); }));
+        });
+      }
+
+      // --- Initialize department and doctor selects ---
+      const deptSelect = document.getElementById('deptSelect');
+      const docSelect = document.getElementById('docSelect');
+
+      function populateDepartments(){
+        departments.forEach(d=>{
+          const opt = document.createElement('option'); opt.value = d.department_id; opt.text = d.department_name; deptSelect.appendChild(opt);
+        });
+      }
+
+      function populateDoctorsForDept(deptId){
+        docSelect.innerHTML = '<option value="">-- Select doctor --</option>';
+        doctors.filter(doc => String(doc.specialization_id) === String(deptId)).forEach(doc =>{
+          const opt = document.createElement('option'); opt.value = doc.id; opt.text = doc.f_name + ' ' + doc.l_name; docSelect.appendChild(opt);
+        });
+      }
+
+      deptSelect.addEventListener('change', function(){ populateDoctorsForDept(this.value); });
+
+      // Search by name (press Enter)
+      document.getElementById('doctorSearch').addEventListener('keydown', function(e){
+        if(e.key === 'Enter'){
+          e.preventDefault();
+          const q = this.value.trim().toLowerCase();
+          if(!q) return;
+          const found = doctors.find(d => (d.f_name + ' ' + d.l_name).toLowerCase().includes(q));
+          if(found){
+            // Ensure department select shows the doctor's dept
+            deptSelect.value = found.specialization_id || '';
+            populateDoctorsForDept(found.specialization_id);
+            docSelect.value = found.id;
+            loadDoctor(found.id);
+          } else {
+            alert('Doctor not found');
+          }
+        }
+      });
+
+      docSelect.addEventListener('change', function(){ if(this.value) loadDoctor(this.value); });
+
+      // --- Load doctor info and availability, render calendar ---
+      async function loadDoctor(doctorId){
+        // fetch doctor info
+        const infoR = await fetch('/doctor/' + doctorId);
+        const info = await infoR.json();
+        if(!info.ok){ alert(info.error||'Failed to load doctor'); return; }
+        document.getElementById('selectedDoctorName').innerText = info.f_name + ' ' + info.l_name;
+        document.getElementById('selectedDoctorDept').innerText = info.department || '';
+        document.getElementById('selectedDoctorContact').innerText = 'Phone: ' + (info.ph_no || '-') + ' | Email: ' + (info.username || '-');
+        document.getElementById('selectedDoctorAvatar').src = info.avatar_url;
+
+        // fetch availability
+        const avR = await fetch('/availability/' + doctorId);
+        const avJ = await avR.json();
+        if(!avJ.ok){ alert(avJ.error||'Failed to load availability'); return; }
+        renderCalendar(avJ.availability, doctorId);
+      }
+
+      function renderCalendar(availability, doctorId){
+          const container = document.getElementById('calendarContainer');
+          container.innerHTML = '';
+          const wrapper = document.createElement('div'); wrapper.className = 'calendar-wrapper';
+          const table = document.createElement('table'); table.className = 'calendar-table';
+
+          // times across the top as columns
+          const times = availability.length ? availability[0].slots.map(s=>s.time) : [];
+          const thead = document.createElement('thead');
+          const headRow = document.createElement('tr');
+          // leading empty header for date column
+          const emptyTh = document.createElement('th'); emptyTh.className='date-col'; emptyTh.innerText='Date'; headRow.appendChild(emptyTh);
+          times.forEach(t => { const th = document.createElement('th'); th.className='time-head'; th.innerText = t; headRow.appendChild(th); });
+          thead.appendChild(headRow); table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          availability.forEach(day => {
+            const tr = document.createElement('tr');
+            const dateTd = document.createElement('td'); dateTd.className='date-col'; dateTd.innerHTML = `<div style="font-weight:700">${day.date}</div>`; tr.appendChild(dateTd);
+            day.slots.forEach(slot => {
+              const td = document.createElement('td');
+              if(slot.booked){ td.className = 'booked'; td.innerHTML = `<div class="small">Booked</div>`; }
+              else { const btn = document.createElement('button'); btn.className='btn btn-sm btn-outline-success slot-btn'; btn.innerText='Book'; btn.addEventListener('click', function(){
+                            if(confirm('Confirm booking for ' + day.date + ' ' + slot.time + '?')){
+                              fetch('/book_appointment', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({doctor_id:doctorId, date: day.date, time: slot.time})})
+                                .then(r=>r.json()).then(j=>{ if(j.ok){ alert('Booked'); location.reload(); } else alert(j.error||'Failed'); });
+                            }
+                          }); td.appendChild(btn); }
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          wrapper.appendChild(table);
+          container.appendChild(wrapper);
+      }
+
+      // Init selects on page load
+      populateDepartments();
+
+      // If there is a default doctor in doctors_js, you could preselect first doctor
+      if(doctors.length>0){
+        // no auto-load to avoid making requests; user selects a doctor explicitly
+      }
+    </script>
+  </body>
+</html>

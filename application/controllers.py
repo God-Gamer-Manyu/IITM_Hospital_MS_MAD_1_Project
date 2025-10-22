@@ -1,9 +1,14 @@
-from flask import Flask, request, render_template, redirect, url_for, jsonify, flash, session
+from flask import Flask, request, render_template, redirect, url_for, jsonify, flash, session, send_file, abort, Response
 from flask import current_app as app
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from .models import Login, Patient
+from .models import Login, Patient, Appointment, Treatment, Doctor, Department
 from .database import db
 from sqlalchemy.exc import IntegrityError
+import base64
+from datetime import datetime, date, time, timedelta
+import io
+import imghdr
+from sqlalchemy import and_
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -90,7 +95,270 @@ def doctor_dashboard():
 @app.route('/patient')
 @role_required(2)
 def patient_dashboard():
-    return render_template('placeholder.html', title='Patient Dashboard', message='Welcome, Patient!')
+    # Get patient info
+    login = Login.query.filter_by(username=current_user.get_id()).first()
+    patient = login.user_info
+
+    # Fetch appointments for patient
+    appts = Appointment.query.filter_by(patient_id=patient.id).all() if patient else []
+
+    # Prepare upcoming and past lists
+    now = datetime.now()
+    upcoming = []
+    past = []
+    for a in appts:
+        try:
+            dt = datetime.strptime(f"{a.date} {a.time}", "%Y-%m-%d %H:%M")
+        except Exception:
+            # fallback when time stored as e.g. '09:00'
+            try:
+                dt = datetime.strptime(a.date, "%Y-%m-%d")
+            except Exception:
+                dt = now
+        if dt.date() < now.date() or (dt.date() == now.date() and dt < now):
+            past.append((dt, a))
+        else:
+            upcoming.append((dt, a))
+
+    # Sort past desc, upcoming asc
+    past.sort(key=lambda x: x[0], reverse=True)
+    upcoming.sort(key=lambda x: x[0])
+
+    # Departments and doctors
+    departments = Department.query.all()
+    doctors = Doctor.query.all()
+
+    # Treatments mapping (assume Treatment.id == Appointment.id if present)
+    treatments = {t.id: t for t in Treatment.query.all()}
+
+    # Prepare profile pic (base64) or None
+    profile_b64 = None
+    if patient and getattr(patient, 'profile_pic', None):
+        profile_b64 = base64.b64encode(patient.profile_pic).decode('utf-8')
+
+    # Convert objects to JSON-serializable structures for use with template JS
+    patient_js = patient.to_dict(include_image=False) if patient else None
+    # include profile_b64 separately if available
+    if patient_js is not None:
+        patient_js['profile_b64'] = profile_b64
+
+    departments_js = [d.to_dict() for d in departments]
+    doctors_js = [d.to_dict() for d in doctors]
+    upcoming_js = [a.to_dict() for _, a in upcoming]
+    past_js = [a.to_dict() for _, a in past]
+
+    # Data for availability: default choose first dept and its first doctor (if any)
+    return render_template('patient.html', patient=patient, patient_js=patient_js, profile_b64=profile_b64,
+                           upcoming=[a for _, a in upcoming], past=[a for _, a in past],
+                           departments=departments, doctors=doctors, treatments=treatments,
+                           departments_js=departments_js, doctors_js=doctors_js, upcoming_js=upcoming_js, past_js=past_js)
+
+
+@app.route('/appointment/<int:appt_id>/details', methods=['GET'])
+@login_required
+def appointment_details(appt_id):
+    appt = Appointment.query.filter_by(id=appt_id).first()
+    if not appt:
+        return jsonify({'ok': False, 'error': 'Appointment not found'}), 404
+    # Ensure current user owns the appointment (if patient)
+    if hasattr(current_user, 'role') and int(current_user.role) == 2:
+        patient = current_user.user_info
+        if not patient or appt.patient_id != patient.id:
+            return jsonify({'ok': False, 'error': 'Unauthorized'}), 403
+
+    tr = Treatment.query.filter_by(id=appt.id).first()
+    return jsonify({'ok': True, 'diagnosis': tr.diagnosis if tr else None,
+                    'prescription': tr.prescription if tr else None,
+                    'notes': tr.notes if tr else None})
+
+
+@app.route('/appointment/<int:appt_id>/cancel', methods=['POST'])
+@login_required
+def appointment_cancel(appt_id):
+    appt = Appointment.query.filter_by(id=appt_id).first()
+    if not appt:
+        return jsonify({'ok': False, 'error': 'Appointment not found'})
+    patient = current_user.user_info
+    if not patient or appt.patient_id != patient.id:
+        return jsonify({'ok': False, 'error': 'Unauthorized'})
+    try:
+        appt.status = 'Cancelled'
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/department/<int:dept_id>', methods=['GET'])
+@login_required
+def department_info(dept_id):
+    d = Department.query.filter_by(department_id=dept_id).first()
+    if not d:
+        return jsonify({'ok': False, 'error': 'Department not found'}), 404
+    doctors_list = [{'id': doc.id, 'f_name': doc.f_name, 'l_name': doc.l_name} for doc in d.doctors]
+    return jsonify({'ok': True, 'department_name': d.department_name, 'description': d.description, 'doctors': doctors_list})
+
+
+@app.route('/update_profile', methods=['POST'])
+@login_required
+def update_profile():
+    patient = current_user.user_info
+    if not patient:
+        return jsonify({'ok': False, 'error': 'Patient not found'})
+    f_name = request.form.get('f_name', '').strip()
+    l_name = request.form.get('l_name', '').strip()
+    ph_no = request.form.get('ph_no', '').strip()
+    if not all([f_name, l_name, ph_no]):
+        return jsonify({'ok': False, 'error': 'All fields required'})
+    try:
+        patient.f_name = f_name
+        patient.l_name = l_name
+        patient.ph_no = int(ph_no)
+        # optional profile pic update
+        prof = request.files.get('profile_pic')
+        if prof and prof.filename:
+            patient.profile_pic = prof.read()
+        db.session.commit()
+        return jsonify({'ok': True})
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'Phone must be numeric'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/avatar/<int:patient_id>')
+@login_required
+def avatar(patient_id: int):
+    """Return profile image bytes for patient or a 302 to placeholder if missing.
+
+    This route uses simple image type detection and returns a Response with proper
+    Content-Type. It intentionally avoids exposing raw file system paths.
+    """
+    p = Patient.query.filter_by(id=patient_id).first()
+    if not p or not getattr(p, 'profile_pic', None):
+        # Redirect to the local default avatar image
+        return redirect(url_for('static', filename='Images/Default_Pic.webp'))
+
+    img_bytes = p.profile_pic
+    # Try to detect image type
+    try:
+        kind = imghdr.what(None, h=img_bytes)
+    except Exception:
+        kind = None
+    content_type = f'image/{kind}' if kind else 'application/octet-stream'
+    return Response(img_bytes, mimetype=content_type)
+
+
+@app.route('/doctor_avatar/<int:doctor_id>')
+@login_required
+def doctor_avatar(doctor_id: int):
+    d = Doctor.query.filter_by(id=doctor_id).first()
+    if not d or not getattr(d, 'profile_pic', None):
+        # Redirect to the local default avatar image for doctors
+        return redirect(url_for('static', filename='Images/Default_Pic.webp'))
+    img_bytes = d.profile_pic
+    try:
+        kind = imghdr.what(None, h=img_bytes)
+    except Exception:
+        kind = None
+    content_type = f'image/{kind}' if kind else 'application/octet-stream'
+    return Response(img_bytes, mimetype=content_type)
+
+
+@app.route('/doctor/<int:doctor_id>', methods=['GET'])
+@login_required
+def doctor_info(doctor_id: int):
+    d = Doctor.query.filter_by(id=doctor_id).first()
+    if not d:
+        return jsonify({'ok': False, 'error': 'Doctor not found'}), 404
+    dept = d.department.department_name if d.department else None
+    return jsonify({'ok': True, 'id': d.id, 'username': d.username, 'f_name': d.f_name, 'l_name': d.l_name,
+                    'ph_no': d.ph_no, 'department': dept,
+                    'avatar_url': url_for('doctor_avatar', doctor_id=d.id)})
+
+
+@app.route('/availability/<int:doctor_id>', methods=['GET'])
+@login_required
+def doctor_availability(doctor_id: int):
+    d = Doctor.query.filter_by(id=doctor_id).first()
+    if not d:
+        return jsonify({'ok': False, 'error': 'Doctor not found'}), 404
+
+    # Build next 7 days including today
+    days = []
+    today = datetime.now().date()
+    for i in range(7):
+        dt = today + timedelta(days=i)
+        days.append(dt.strftime('%Y-%m-%d'))
+
+    # Build slots from 09:00 to 20:00 in 30-min steps
+    slots = []
+    start = datetime.strptime('09:00', '%H:%M')
+    end = datetime.strptime('20:00', '%H:%M')
+    cur = start
+    while cur <= end:
+        slots.append(cur.strftime('%H:%M'))
+        cur += timedelta(minutes=30)
+
+    # Query existing appointments for this doctor in the range
+    appts = Appointment.query.filter(and_(Appointment.doctor_id == doctor_id, Appointment.date.in_(days))).all()
+    booked = set((a.date, a.time) for a in appts if a.status != 'Cancelled')
+
+    # Prepare availability structure: list of days each with list of slots
+    availability = []
+    for day in days:
+        day_slots = []
+        for t in slots:
+            is_booked = (day, t) in booked
+            day_slots.append({'time': t, 'booked': is_booked})
+        availability.append({'date': day, 'slots': day_slots})
+
+    return jsonify({'ok': True, 'doctor_id': doctor_id, 'availability': availability})
+
+
+@app.route('/book_appointment', methods=['POST'])
+@login_required
+def book_appointment():
+    data = request.get_json() or request.form
+    try:
+        doctor_id = int(data.get('doctor_id'))
+        date_str = data.get('date')
+        time_str = data.get('time')
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Missing parameters'}), 400
+
+    # Validate inputs
+    d = Doctor.query.filter_by(id=doctor_id).first()
+    if not d:
+        return jsonify({'ok': False, 'error': 'Doctor not found'}), 404
+    # Validate date format
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+        datetime.strptime(time_str, '%H:%M')
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid date/time format'}), 400
+
+    patient = current_user.user_info
+    if not patient:
+        return jsonify({'ok': False, 'error': 'Patient not found'}), 403
+
+    # Check slot availability
+    exists = Appointment.query.filter_by(doctor_id=doctor_id, date=date_str, time=time_str).first()
+    if exists and exists.status != 'Cancelled':
+        return jsonify({'ok': False, 'error': 'Slot already booked'}), 409
+
+    # Create appointment
+    try:
+        appt = Appointment(patient_id=patient.id, doctor_id=doctor_id, date=date_str, time=time_str, status='Booked')
+        db.session.add(appt)
+        db.session.commit()
+        return jsonify({'ok': True, 'appointment_id': appt.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -115,7 +383,8 @@ def register():
 
         # Save to DB: create Patient and Login entries
         try:
-            patient = Patient(username=username, f_name=f_name, l_name=l_name, ph_no=int(ph_no))
+            # Explicitly set created_at so 'member since' is populated on registration
+            patient = Patient(username=username, f_name=f_name, l_name=l_name, ph_no=int(ph_no), created_at=datetime.now())
             # Handle optional profile picture
             profile_file = request.files.get('profile_pic')
             if profile_file and profile_file.filename:

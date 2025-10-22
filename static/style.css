@@ -92,3 +92,42 @@ main.container {
 @media (max-width: 480px) {
   .card-login { margin: 4vh 1.25rem; }
 }
+
+/* Patient page styles (moved from inline patient.html) */
+.navbar-top { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 1rem; border-bottom:2px solid #111; background:#fff; }
+.container-main { max-width:1100px; margin:1rem auto; padding:0 1rem; }
+.dept-carousel { display:flex; gap:1rem; padding:1rem 0; overflow-x:auto; }
+.dept-card { width:160px; height:120px; background:#fff; border:1px solid #ddd; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:600; cursor:pointer; }
+.search-doctor { width:100%; margin:0.5rem 0 1rem; }
+.doctor-panel { background:#fff; border:1px solid #e6edf3; padding:1rem; border-radius:8px; }
+.doctor-info { display:flex; gap:1rem; align-items:flex-start; }
+.doctor-avatar { width:96px; height:96px; border-radius:8px; object-fit:cover; }
+.booking-area { margin-top:1rem; border:1px dashed #e6eef6; padding:0.75rem; border-radius:6px; background:#fbfeff; }
+.appointments-wrap { margin-top:1.25rem; }
+.appt-card { background:#fff; border:1px solid #e6edf3; padding:1rem; border-radius:8px; }
+.appointments-list { min-height:200px; max-height:420px; overflow:auto; }
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; z-index:1050; }
+.popup-card { max-width:720px; width:95%; }
+.popup-header-actions { width:100%; display:flex; justify-content:flex-end; gap:0.5rem; margin-top:-1.6rem; margin-bottom:0.5rem; }
+.profile-edit-input { margin-bottom:0.75rem; }
+
+/* Modern profile popup styles */
+.profile-popup { display:flex; gap:1rem; align-items:flex-start; }
+.profile-popup .pp-avatar { width:96px; height:96px; border-radius:12px; object-fit:cover; border:1px solid #e6edf3; }
+.profile-popup .pp-main { flex:1; }
+.profile-popup .pp-name { font-size:1.25rem; font-weight:700; margin-bottom:0.25rem; }
+.profile-popup .pp-sub { color:#6b7280; margin-bottom:0.25rem; }
+.profile-popup .pp-contact { margin-top:0.5rem; display:flex; gap:1.25rem; flex-wrap:wrap; }
+.profile-popup .pp-contact .pp-item { background:#f8fafc; border:1px solid #e6edf3; padding:0.5rem 0.75rem; border-radius:6px; font-size:0.95rem; }
+.popup-actions-row { display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-top:1rem; }
+.popup-actions-row .btn { min-width:96px; }
+
+/* Department popup styles */
+.dept-popup { display:flex; flex-direction:column; gap:1rem; }
+.dept-popup .dept-head { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
+.dept-popup .dept-title { font-size:1.25rem; font-weight:700; }
+.dept-popup .dept-desc { color:#6b7280; }
+.dept-popup .dept-doctors { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem; }
+.dept-popup .dept-doctor { background:#fff; border:1px solid #e6edf3; padding:0.5rem 0.75rem; border-radius:8px; display:flex; gap:0.5rem; align-items:center; min-width:220px; }
+.dept-popup .dept-doctor .doc-name { font-weight:600; }
+.dept-popup .dept-doctor .doc-action { margin-left:auto; }
