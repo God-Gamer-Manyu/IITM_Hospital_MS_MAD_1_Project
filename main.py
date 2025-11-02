@@ -3,6 +3,7 @@ from flask import Flask, jsonify
 from application import config
 from application.database import db
 from application.config import LocalDevelopmentConfig
+from flask_restful import Api
 
 # Note: Beatification and dark mode is left for future improvements
 
@@ -29,6 +30,22 @@ def create_app():
     return app
 
 app = create_app()
+
+# Register RESTful API and resources
+api = Api(app)
+try:
+    # Import resources lazily so they can access models and db
+    from application.api_appointments import AppointmentListResource, AppointmentResource
+    api.add_resource(AppointmentListResource, '/api/appointments')
+    api.add_resource(AppointmentResource, '/api/appointments/<int:appt_id>')
+    try:
+        from application.api_appointments import PublicDoctorAvailabilityResource
+        api.add_resource(PublicDoctorAvailabilityResource, '/api/public/doctor/<int:doctor_id>/availability')
+    except Exception:
+        pass
+except Exception:
+    # If import fails during indexing/static analysis it's non-fatal here
+    pass
 
 # import controllers after app creation to avoid circular imports
 from application.controllers import *

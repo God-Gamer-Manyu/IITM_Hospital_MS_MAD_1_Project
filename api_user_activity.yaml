@@ -1,0 +1,229 @@
+openapi: 3.0.3
+info:
+  title: User Activity APIs
+  version: '1.0.0'
+  description: |
+    API endpoints for user authentication and activity tracking used by the project.
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/login:
+    post:
+      summary: Authenticate user and create a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/activities:
+    get:
+      summary: Fetch logged activities for the authenticated user
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+          description: Optional start date (YYYY-MM-DD)
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+          description: Optional end date (YYYY-MM-DD)
+      responses:
+        '200':
+          description: List of activities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitiesResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/activity/add:
+    post:
+      summary: Add a new activity entry for the authenticated user
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddActivityRequest'
+      responses:
+        '201':
+          description: Activity created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  id:
+                    type: integer
+                    example: 123
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/summary:
+    get:
+      summary: Return daily/weekly analytics summary for the authenticated user
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [daily, weekly]
+          description: Period to aggregate (daily or weekly)
+      responses:
+        '200':
+          description: Summary metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+  schemas:
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          example: user@example.com
+        password:
+          type: string
+          example: secret
+      required: [username, password]
+    LoginResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Logged in
+        role:
+          type: integer
+          description: 0=admin, 1=doctor, 2=patient
+          example: 2
+    Activity:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        date:
+          type: string
+          format: date
+          example: '2025-11-02'
+        type:
+          type: string
+          example: study
+        duration_minutes:
+          type: integer
+          example: 60
+        notes:
+          type: string
+          example: 'Read chapter 3'
+    ActivitiesResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+    AddActivityRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2025-11-02'
+        type:
+          type: string
+          example: study
+        duration_minutes:
+          type: integer
+          example: 60
+        notes:
+          type: string
+          example: 'Optional notes'
+      required: [date, type, duration_minutes]
+    SummaryResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        period:
+          type: string
+          example: weekly
+        total_minutes:
+          type: integer
+          example: 720
+        breakdown:
+          type: object
+          additionalProperties:
+            type: integer
+          example: {study: 300, exercise: 120, sleep: 300}
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string

@@ -9,6 +9,7 @@ from datetime import datetime, date, time, timedelta
 import io
 import imghdr
 from sqlalchemy import and_
+import re
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -86,6 +87,31 @@ def role_required(role_id: int):
         wrapper.__name__ = func.__name__
         return wrapper
     return decorator
+
+
+# Validation helpers
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._@-]{3,64}$")
+PHONE_RE = re.compile(r"^[0-9]{7,15}$")
+
+def is_valid_email(s: str) -> bool:
+    return bool(EMAIL_RE.match(s))
+
+def is_valid_username(s: str) -> bool:
+    return bool(USERNAME_RE.match(s))
+
+def is_valid_phone(s: str) -> bool:
+    return bool(PHONE_RE.match(s))
+
+def is_strong_password(p: str) -> bool:
+    # Basic: minimum 8 chars, contains letter and number
+    if not p or len(p) < 8:
+        return False
+    if not re.search(r"[A-Za-z]", p):
+        return False
+    if not re.search(r"[0-9]", p):
+        return False
+    return True
 
 
 @app.route('/admin')
@@ -209,8 +235,15 @@ def admin_add_patient():
     ph_no = request.form.get('ph_no', '').strip()
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '')
+    # Validate inputs
     if not all([f_name, l_name, ph_no, username, password]):
         return jsonify({'ok': False, 'error': 'All fields required'}), 400
+    if not is_valid_email(username):
+        return jsonify({'ok': False, 'error': 'Invalid email address'}), 400
+    if not is_valid_phone(ph_no):
+        return jsonify({'ok': False, 'error': 'Phone must be numeric and 7-15 digits'}), 400
+    if not is_strong_password(password):
+        return jsonify({'ok': False, 'error': 'Password too weak (min 8 chars, letters and numbers)'}), 400
     if Login.query.filter_by(username=username).first():
         return jsonify({'ok': False, 'error': 'Username already exists'}), 409
     try:
@@ -390,8 +423,15 @@ def admin_add_doctor():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '')
     specialization_id = request.form.get('specialization_id')
+    # Validate inputs
     if not all([f_name, l_name, ph_no, username, password]):
         return jsonify({'ok': False, 'error': 'All fields required'}), 400
+    if not is_valid_email(username):
+        return jsonify({'ok': False, 'error': 'Invalid email address'}), 400
+    if not is_valid_phone(ph_no):
+        return jsonify({'ok': False, 'error': 'Phone must be numeric and 7-15 digits'}), 400
+    if not is_strong_password(password):
+        return jsonify({'ok': False, 'error': 'Password too weak (min 8 chars, letters and numbers)'}), 400
     if Login.query.filter_by(username=username).first():
         return jsonify({'ok': False, 'error': 'Username already exists'}), 409
     try:
@@ -402,6 +442,9 @@ def admin_add_doctor():
             spec_id_int = int(specialization_id)
         except Exception:
             return jsonify({'ok': False, 'error': 'Invalid department selection'}), 400
+        # Ensure department exists
+        if not Department.query.filter_by(department_id=spec_id_int).first():
+            return jsonify({'ok': False, 'error': 'Selected department does not exist'}), 400
 
         # Set created_at so new doctors have a registration timestamp
         d = Doctor(username=username, f_name=f_name, l_name=l_name, ph_no=int(ph_no), created_at=datetime.now())
@@ -515,6 +558,8 @@ def admin_add_department():
     desc = request.form.get('description', '').strip()
     if not name:
         return jsonify({'ok': False, 'error': 'Department name required'}), 400
+    if len(name) < 2 or len(name) > 100:
+        return jsonify({'ok': False, 'error': 'Department name must be 2-100 characters'}), 400
     try:
         dep = Department(department_name=name, description=desc)
         prof = request.files.get('dep_pic')
@@ -1080,6 +1125,31 @@ def register():
 
         if password != confirm_password:
             flash('Passwords do not match', 'error')
+            return render_template('register.html')
+
+        # Username should be an email address for patients in this app
+        if not is_valid_email(username):
+            flash('Please enter a valid email address', 'error')
+            return render_template('register.html')
+
+        # Phone validation
+        if not is_valid_phone(ph_no):
+            flash('Phone number must be numeric and 7-15 digits', 'error')
+            return render_template('register.html')
+
+        # Password strength (basic)
+        if not is_strong_password(password):
+            flash('Password must be at least 8 characters and include letters and numbers', 'error')
+            return render_template('register.html')
+
+        # Prevent suspicious usernames
+        if not is_valid_username(username):
+            flash('Invalid username characters', 'error')
+            return render_template('register.html')
+
+        # Ensure username not already taken
+        if Login.query.filter_by(username=username).first():
+            flash('Username already registered', 'error')
             return render_template('register.html')
 
         # Save to DB: create Patient and Login entries

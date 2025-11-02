@@ -313,13 +313,25 @@
     }
 
     async function saveAddPatient(){
+      // Client-side validation
+      const f = document.getElementById('ap_f').value.trim();
+      const l = document.getElementById('ap_l').value.trim();
+      const u = document.getElementById('ap_u').value.trim();
+      const pw = document.getElementById('ap_pw').value;
+      const ph = document.getElementById('ap_ph').value.trim();
+      const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+      const phoneRe = /^[0-9]{7,15}$/;
+      if(!f || !l || !u || !pw || !ph){ alert('All fields are required'); return; }
+      if(!emailRe.test(u)){ alert('Please enter a valid email address'); return; }
+      if(pw.length < 8 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)){ alert('Password must be at least 8 characters and include letters and numbers'); return; }
+      if(!phoneRe.test(ph)){ alert('Phone must be numeric and 7-15 digits'); return; }
       if(!confirm('Add this patient?')) return;
       const fd = new FormData();
-      fd.append('f_name', document.getElementById('ap_f').value.trim());
-      fd.append('l_name', document.getElementById('ap_l').value.trim());
-      fd.append('username', document.getElementById('ap_u').value.trim());
-      fd.append('password', document.getElementById('ap_pw').value);
-      fd.append('ph_no', document.getElementById('ap_ph').value.trim());
+      fd.append('f_name', f);
+      fd.append('l_name', l);
+      fd.append('username', u);
+      fd.append('password', pw);
+      fd.append('ph_no', ph);
       const pic = document.getElementById('ap_pic'); if(pic && pic.files && pic.files.length>0) fd.append('profile_pic', pic.files[0]);
       const res = await fetch('/admin/patient/add', { method: 'POST', body: fd });
       const j = await res.json();
@@ -637,13 +649,25 @@
       // Validate department selection first (prevent submitting the default "All depts" value)
       const deptVal = document.getElementById('adoc_dept') ? document.getElementById('adoc_dept').value : '';
   if(!deptVal || deptVal.trim() === ''){ alert('Kindly select a department before adding a doctor.'); return; }
+      // client-side validation
+      const f = document.getElementById('adoc_f').value.trim();
+      const l = document.getElementById('adoc_l').value.trim();
+      const u = document.getElementById('adoc_u').value.trim();
+      const pw = document.getElementById('adoc_pw').value;
+      const ph = document.getElementById('adoc_ph').value.trim();
+      const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+      const phoneRe = /^[0-9]{7,15}$/;
+      if(!f || !l || !u || !pw || !ph){ alert('All fields are required'); return; }
+      if(!emailRe.test(u)){ alert('Please enter a valid email address'); return; }
+      if(pw.length < 8 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)){ alert('Password must be at least 8 characters and include letters and numbers'); return; }
+      if(!phoneRe.test(ph)){ alert('Phone must be numeric and 7-15 digits'); return; }
       if(!confirm('Add this doctor?')) return;
       const fd = new FormData();
-      fd.append('f_name', document.getElementById('adoc_f').value.trim());
-      fd.append('l_name', document.getElementById('adoc_l').value.trim());
-      fd.append('username', document.getElementById('adoc_u').value.trim());
-      fd.append('password', document.getElementById('adoc_pw').value);
-      fd.append('ph_no', document.getElementById('adoc_ph').value.trim());
+      fd.append('f_name', f);
+      fd.append('l_name', l);
+      fd.append('username', u);
+      fd.append('password', pw);
+      fd.append('ph_no', ph);
       fd.append('specialization_id', document.getElementById('adoc_dept').value);
       const pic = document.getElementById('adoc_pic'); if(pic && pic.files && pic.files.length>0) fd.append('profile_pic', pic.files[0]);
       const res = await fetch('/doctor/add', { method: 'POST', body: fd });

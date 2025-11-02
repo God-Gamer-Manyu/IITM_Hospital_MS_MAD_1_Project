@@ -69,5 +69,29 @@
         </div>
       </div>
     </main>
+            <script>
+              // Client-side validation for register form
+              (function(){
+                const form = document.querySelector('form');
+                if(!form) return;
+                function validEmail(e){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); }
+                function validPhone(p){ return /^[0-9]{7,15}$/.test(p); }
+                function strongPassword(p){ return p && p.length>=8 && /[A-Za-z]/.test(p) && /[0-9]/.test(p); }
+                form.addEventListener('submit', function(ev){
+                  const username = document.getElementById('username').value.trim();
+                  const password = document.getElementById('password').value || '';
+                  const confirm = document.getElementById('confirm_password').value || '';
+                  const f = document.getElementById('f_name').value.trim();
+                  const l = document.getElementById('l_name').value.trim();
+                  const ph = document.getElementById('ph_no').value.trim();
+                  if(!username || !password || !confirm || !f || !l || !ph){ alert('All fields are required'); ev.preventDefault(); return; }
+                  if(!validEmail(username)){ alert('Please enter a valid email address'); ev.preventDefault(); return; }
+                  if(password !== confirm){ alert('Passwords do not match'); ev.preventDefault(); return; }
+                  if(!strongPassword(password)){ alert('Password must be at least 8 characters and include letters and numbers'); ev.preventDefault(); return; }
+                  if(!validPhone(ph)){ alert('Phone must be numeric and 7-15 digits'); ev.preventDefault(); return; }
+                  // allow submit
+                });
+              })();
+            </script>
   </body>
   </html>

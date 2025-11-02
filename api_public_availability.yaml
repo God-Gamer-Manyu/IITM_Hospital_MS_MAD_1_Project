@@ -1,0 +1,99 @@
+openapi: 3.0.3
+info:
+  title: Public Doctor Availability API
+  version: '1.0.0'
+  description: Returns booked/free slots for a given doctor. Public endpoint intended for integration with scheduling clients.
+servers:
+  - url: http://{host}:{port}
+    variables:
+      host:
+        default: 127.0.0.1
+      port:
+        default: '8000'
+paths:
+  /api/public/doctor/{doctor_id}/availability:
+    get:
+      summary: Get availability for a doctor
+      description: |
+        Returns a list of dates and 30-minute time slots (09:00-20:00) with a boolean 'booked' flag for each slot. No patient-identifying data is returned.
+      parameters:
+        - name: doctor_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: start
+          in: query
+          required: false
+          description: Start date in YYYY-MM-DD format (defaults to today)
+          schema:
+            type: string
+            format: date
+        - name: days
+          in: query
+          required: false
+          description: Number of days to return (default 7, max 30)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+      responses:
+        '200':
+          description: Availability returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  doctor_id:
+                    type: integer
+                    example: 2
+                  availability:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                          example: '2025-11-02'
+                        slots:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              time:
+                                type: string
+                                example: '09:00'
+                              booked:
+                                type: boolean
+                                example: false
+        '400':
+          description: Bad request (invalid params)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+        '404':
+          description: Doctor not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+components: {}
