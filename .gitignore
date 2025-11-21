@@ -11,5 +11,5 @@ wheels/
 Da_Vinci/
 Project_Report_Rtamanyu_NJ.docx
 Project_Report_Rtamanyu_NJ.pdf
-static\Design Ideas
-scripts\generate_report_docx.py
+static/Design_Ideas
+scripts/generate_report_docx.py
