@@ -88,3 +88,31 @@ The app listens on `0.0.0.0:8000` by default. Open `http://localhost:8000` in a 
 ## License
 
 This project is licenced under [MIT License](LICENSE)
+
+---
+
+## 🏗️ Architecture & Concepts
+
+```
+Browser (Jinja2 pages: login / register / admin / doctor / patient)
+   │  HTTP (forms, fetch)
+   ▼
+Flask app (main.py: create_app factory)
+   ├── application/controllers.py   → page routes + role-based dashboards (Flask-Login sessions)
+   ├── application/api_appointments.py → Flask-RESTful resources (/api/appointments, public availability)
+   ├── application/models.py         → SQLAlchemy ORM models
+   └── application/config.py         → environment-specific config
+   ▼
+SQLite (db/HMS_IITM.sqlite3)
+```
+
+**Data model (SQLAlchemy):** `Login` (credentials + role: 0 = Admin, 1 = Doctor, 2 = Patient) · `Admin` · `Doctor` · `Patient` · `Department` · `Appointment` · `Treatment`
+
+**Role-based modules**
+- **Admin:** dashboard metrics, appointment calendar, CRUD for patients, doctors and departments, blacklisting of doctors and patients, profile management
+- **Doctor:** calendar of appointments, patient list, marking appointments complete, recording and editing treatments, managing availability
+- **Patient:** registration, browsing departments and doctors, checking availability, booking and cancelling appointments, viewing appointment details and treatment history, profile and avatar upload
+
+**Concepts:** MVC architecture · application-factory pattern · **REST API design** (Flask-RESTful, documented with OpenAPI YAML specs) · **relational database design & SQL** via SQLAlchemy ORM · authentication & session management (Flask-Login) · **role-based access control** (custom decorator) · server-side rendering with Jinja2 · binary image storage and serving (avatars)
+
+> **Dependency note:** the code also imports `flask-sqlalchemy` and `flask-login`. If they are not installed by `pip install -e .`, install them with `pip install flask-sqlalchemy flask-login`. Use **Python 3.12**, because the code uses the `imghdr` module, which was removed in Python 3.13.
